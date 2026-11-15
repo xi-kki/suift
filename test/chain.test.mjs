@@ -1,0 +1,12 @@
+import { SuiGrpcClient } from '@mysten/sui/grpc';
+import { bcs } from '@mysten/sui/bcs';
+import assert from 'node:assert';
+const c = new SuiGrpcClient({ network: 'testnet', baseUrl: 'https://fullnode.testnet.sui.io:443' });
+const Entry = bcs.struct('Entry', { player: bcs.Address, name: bcs.string(), score: bcs.u64(), laps: bcs.u64(), perfects: bcs.u64(), ts_ms: bcs.u64() });
+const Board = bcs.struct('Leaderboard', { id: bcs.Address, entries: bcs.vector(Entry), total_runs: bcs.u64() });
+const { object } = await c.getObject({ objectId: '0x82b6ec776d4eb15fcfa1e11225c704d0f489e1f47810d43e936c237b7a1d5219', include: { content: true } });
+const b = Board.parse(object.content);
+assert(b.entries.length >= 1); assert(Number(b.entries[0].score) > 0);
+console.log('board ok', b.total_runs, b.entries.map((e) => `${e.name}:${e.score}`).join(','));
+const m = await c.getObject({ objectId: process.argv[2], include: { display: true } });
+console.log('display', JSON.stringify(m.object.display));
