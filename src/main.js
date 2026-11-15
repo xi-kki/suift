@@ -62,11 +62,9 @@ function renderWallet() {
   addr = chain.account();
   $('walletChip').textContent = addr ? short(addr) : 'Connect wallet';
   $('walletChip').classList.toggle('on', !!addr);
-  $('gateConnect').hidden = !!addr;
-  $('modes').hidden = !addr;
   $('gateNote').innerHTML = addr
-    ? `Ready, ${short(addr)}`
-    : 'At the end, you can save your art on Sui.';
+    ? `Wallet connected: ${short(addr)}`
+    : 'No wallet needed to play. Connect one later to save your art.';
 }
 chain.onAccount(renderWallet);
 
@@ -104,7 +102,6 @@ $('pickerList').addEventListener('click', async (e) => {
 });
 $('pickerClose').addEventListener('click', closePicker);
 $('picker').addEventListener('click', (e) => { if (e.target.id === 'picker') closePicker(); });
-$('gateConnect').addEventListener('click', (e) => { e.stopPropagation(); openPicker(); });
 $('walletChip').addEventListener('click', (e) => {
   e.stopPropagation();
   if (!addr) return openPicker();
@@ -118,7 +115,6 @@ document.addEventListener('click', () => ($('walletMenu').hidden = true));
 
 // ---------- flow ----------
 function begin(mode) {
-  if (!chain.account()) { show('intro'); openPicker(); return; }
   if (store.get('suift.seenHow', '0') !== '1') { showHow(mode); return; }
   sfx.initAudio();
   show(null);
