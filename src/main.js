@@ -27,7 +27,7 @@ const game = new Game($('stage'), {
     $('combo').textContent = h.combo >= 2 ? `×${Math.min(h.combo, 6)}` : '';
     $('timer').textContent = h.time === null ? 'zen' : fmt(h.time);
     $('timer').classList.toggle('low', h.time !== null && h.time < 10);
-    $('tempo').textContent = `labyrinth ${h.level}`;
+    $('tempo').textContent = `level ${h.level}`;
     const sorted = [...h.collected].sort((a, b) => a - b);
     const bar = $('sort');
     if (bar.childElementCount !== sorted.length) bar.innerHTML = sorted.map((hue) => `<i style="background:hsl(${hue} 70% 70%)"></i>`).join('');
@@ -44,10 +44,10 @@ const game = new Game($('stage'), {
     $('oLaps').textContent = run.laps;
     $('oPerf').textContent = run.perfects;
     const best = Number(store.get('suift.best', 0));
-    $('overEyebrow').textContent = run.score > best ? 'time · a new personal best' : 'time · your labyrinth';
+    $('overEyebrow').textContent = run.score > best ? 'time\x27s up · new best!' : 'time\x27s up';
     if (run.score > best) store.set('suift.best', run.score);
     const mint = $('mint'); mint.disabled = run.score <= 0; mint.hidden = false;
-    setNote(run.score > 0 ? 'Testnet · one signature · free test SUI from <a href="https://faucet.sui.io" target="_blank" rel="noopener">faucet.sui.io</a>' : 'Pass at least one ring to mint a mandala.');
+    setNote(run.score > 0 ? 'Saves your art and score on Sui. Free test coins: <a href="https://faucet.sui.io" target="_blank" rel="noopener">faucet.sui.io</a>' : 'Pass one ring to save your art.');
     show('over');
     setTimeout(() => $('again').focus(), 50);
   },
@@ -65,8 +65,8 @@ function renderWallet() {
   $('gateConnect').hidden = !!addr;
   $('modes').hidden = !addr;
   $('gateNote').innerHTML = addr
-    ? `Connected as <b>${short(addr)}</b> · Sui testnet`
-    : 'Connect a Sui wallet to begin. Each run mints as a mandala on Sui testnet.';
+    ? `Ready, ${short(addr)}`
+    : 'At the end, you can save your art on Sui.';
 }
 chain.onAccount(renderWallet);
 
@@ -75,7 +75,7 @@ function openPicker() {
   $('pickerErr').textContent = '';
   $('pickerList').innerHTML = list.length
     ? list.map((w, i) => `<li><button data-w="${i}"><img src="${esc(w.icon)}" alt="" width="32" height="32"/><span>${esc(w.name)}</span></button></li>`).join('')
-    : '<li class="none">No Sui wallet found in this browser.</li>';
+    : '<li class="none">No wallet found.</li>';
   $('picker').hidden = false;
   $('pickerList').querySelector('button')?.focus();
 }
@@ -87,18 +87,18 @@ $('pickerList').addEventListener('click', async (e) => {
   if (!btn) return;
   const w = chain.wallets()[Number(btn.dataset.w)];
   $('pickerErr').className = 'picker-msg';
-  $('pickerErr').textContent = `Opening ${w.name}… approve in the wallet window.`;
+  $('pickerErr').textContent = `Opening ${w.name}… say yes in your wallet.`;
   try {
     await chain.connect(w);
     closePicker();
-    toast('wallet connected');
+    toast('connected');
   } catch (err) {
     console.error('connect failed', err);
     const msg = String(err?.message || err);
     $('pickerErr').className = 'picker-msg err';
     $('pickerErr').textContent = /reject|denied|cancel|closed/i.test(msg)
-      ? 'Connection cancelled in the wallet. Try again when ready.'
-      : /popup/i.test(msg) ? 'Your browser blocked the wallet popup. Allow popups for this site, then retry.'
+      ? 'You said no in the wallet. Try again any time.'
+      : /popup/i.test(msg) ? 'Your browser blocked the wallet window. Allow pop-ups, then try again.'
       : `Could not connect: ${msg.slice(0, 160)}`;
   }
 });
@@ -134,7 +134,7 @@ let howMode = 'calm';
 function showHow(mode = 'calm') {
   howMode = mode;
   $('board').hidden = true;
-  $('howGo').innerHTML = mode === 'zen' ? 'Begin <span>zen</span>' : 'Begin <span>timed</span>';
+  $('howGo').innerHTML = mode === 'zen' ? 'Relax' : 'Play';
   show('how');
 }
 $('openHow').addEventListener('click', (e) => { e.stopPropagation(); showHow(); });
@@ -144,7 +144,7 @@ $('howGo').addEventListener('click', (e) => { e.stopPropagation(); store.set('su
 function coach() {
   const runs = Number(store.get('suift.runs', 0)); store.set('suift.runs', runs + 1);
   if (runs >= 2) return;
-  [[500, 'tap when the gap glows gold'], [5000, 'slip inward, ring by ring'], [10000, 'reach the heart before time runs out']]
+  [[500, 'tap when the gap turns gold'], [5000, 'get to the middle'], [10000, 'beat the clock']]
     .forEach(([t, msg]) => setTimeout(() => game.state === 'play' && toast(msg), t));
 }
 
@@ -188,10 +188,10 @@ async function renderBoard() {
   try {
     const b = await chain.fetchBoard();
     const me = chain.account();
-    $('boardSub').textContent = `${b.total} run${b.total === 1 ? '' : 's'} traced on Sui testnet`;
+    $('boardSub').textContent = `${b.total} game${b.total === 1 ? '' : 's'} saved`;
     $('boardList').innerHTML = b.entries.length
-      ? b.entries.map((e) => `<li class="${e.player === me ? 'me' : ''}"><span class="who">${esc(e.name || 'unnamed')}<small>${short(e.player)} · ${e.laps} labyrinths · ${e.perfects} perfect</small></span><span class="pts">${e.score}</span></li>`).join('')
-      : '<li class="empty"><span class="who">No runs yet. Be the first stillness.</span></li>';
+      ? b.entries.map((e) => `<li class="${e.player === me ? 'me' : ''}"><span class="who">${esc(e.name || 'unnamed')}<small>${short(e.player)} · level ${e.laps} · ${e.perfects} perfect</small></span><span class="pts">${e.score}</span></li>`).join('')
+      : '<li class="empty"><span class="who">No one yet. Be the first!</span></li>';
   } catch (err) {
     console.error(err);
     $('boardSub').textContent = 'Could not reach Sui testnet. Try again shortly.';
@@ -205,22 +205,22 @@ $('mint').addEventListener('click', async (e) => {
   if (!lastRun) return;
   if (!chain.account()) { openPicker(); return; }
   const btn = $('mint'); btn.disabled = true;
-  setNote('Waiting for your signature in the wallet…');
+  setNote('Say yes in your wallet…');
   try {
     const digest = await chain.submitRun({
       name: (nameEl.value || 'unnamed').trim(),
       score: lastRun.score, laps: lastRun.laps, perfects: lastRun.perfects, image: lastRun.image,
     });
-    setNote(`Minted. Your mandala lives on Sui · <a href="${chain.txUrl(digest)}" target="_blank" rel="noopener">view transaction</a>`, 'ok');
+    setNote(`Saved! · <a href="${chain.txUrl(digest)}" target="_blank" rel="noopener">see it</a>`, 'ok');
     sfx.peelDone();
     btn.hidden = true; lastRun = null;
   } catch (err) {
     console.error(err);
     btn.disabled = false;
     const msg = String(err?.message || err);
-    setNote(/reject|denied|cancel/i.test(msg) ? 'Signature cancelled. Your mandala is still here.'
-      : /gas|balance|insufficient/i.test(msg) ? 'Not enough test SUI. Get some free at <a href="https://faucet.sui.io" target="_blank" rel="noopener">faucet.sui.io</a>, then retry.'
-      : `Could not mint: ${esc(msg).slice(0, 160)}`, 'err');
+    setNote(/reject|denied|cancel/i.test(msg) ? 'You said no. Your art is still here.'
+      : /gas|balance|insufficient/i.test(msg) ? 'Not enough test coins. Get free ones at <a href="https://faucet.sui.io" target="_blank" rel="noopener">faucet.sui.io</a>, then retry.'
+      : `Could not save: ${esc(msg).slice(0, 160)}`, 'err');
   }
 });
 

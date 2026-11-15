@@ -34,7 +34,7 @@
   <div class="hud" id="hud" hidden>
     <div class="timer" id="timer">0:50</div>
     <div class="score"><span id="score">0</span><small id="combo"></small></div>
-    <div class="meta"><span id="tempo">labyrinth 1</span></div>
+    <div class="meta"><span id="tempo">level 1</span></div>
     <div class="sort" id="sort" aria-hidden="true"></div>
     <button class="ghost small" id="zenEnd" hidden>finish</button>
   </div>
@@ -42,35 +42,35 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <section class="screen" id="intro">
-    <p class="eyebrow">a calm labyrinth · on sui</p>
+    <p class="eyebrow">a calm maze game</p>
     <h1>Suift</h1>
-    <p class="lede">Slip the light through turning rings.<br />Reach the heart. Keep what you draw.</p>
-    <p class="tagline">a game that trains calm focus under a ticking clock</p>
-    <button class="primary gate" id="gateConnect">Connect wallet <span>to begin</span></button>
+    <p class="lede">Get the ball to the middle.<br />Tap when the gap turns gold.</p>
+    <p class="tagline">stay calm. beat the clock.</p>
+    <button class="primary gate" id="gateConnect">Connect wallet to play</button>
     <div class="modes" id="modes" hidden>
-      <button class="primary" data-mode="calm">Begin <span>timed</span></button>
-      <button class="ghost" data-mode="zen">Zen <span>no clock</span></button>
+      <button class="primary" data-mode="calm">Play</button>
+      <button class="ghost" data-mode="zen">Relax <span>no clock</span></button>
     </div>
     <p class="hint" id="gateNote"></p>
-    <div class="links"><button class="link" id="openHow">how to play</button><button class="link" id="openBoard">leaderboard</button></div>
+    <div class="links"><button class="link" id="openHow">how to play</button><button class="link" id="openBoard">top players</button></div>
   </section>
 
   <section class="screen" id="how" hidden aria-labelledby="howTitle">
     <p class="eyebrow">how to play</p>
-    <h2 id="howTitle" class="how-title">Five calm rules</h2>
+    <h2 id="howTitle" class="how-title">Easy as five</h2>
     <ol class="how">
       <li><svg viewBox="0 0 48 48"><path d="M24 6a18 18 0 1 1-12.7 5.3" class="ring"/><path d="M24 14a10 10 0 1 0 9 5.6" class="ring"/><circle cx="24" cy="6" r="3.5" class="ball"/><circle cx="24" cy="24" r="3" class="orb"/></svg>
-        <div><b>Find the heart.</b> The light circles its ring by itself. The glowing centre is your goal.</div></li>
+        <div><b>The ball moves by itself.</b> Get it to the glowing middle.</div></li>
       <li><svg viewBox="0 0 48 48"><path d="M30 7a18 18 0 1 1-12 0" class="ring"/><circle cx="18" cy="7" r="2" class="lip"/><circle cx="30" cy="7" r="2" class="lip"/><circle cx="24" cy="6" r="3.5" class="ball"/><path d="M24 12v6" class="arrow"/></svg>
-        <div><b>Tap when the gap glows gold.</b> Tap anywhere (or <kbd>space</kbd>) to slip inward through the opening below you. Rush it and the gap locks for one breath, so wait for the glow.</div></li>
+        <div><b>Tap when the gap turns gold.</b> The ball drops in. Too soon? Wait a second.</div></li>
       <li><svg viewBox="0 0 48 48"><path d="M24 6a18 18 0 1 1-0.1 0" class="ring"/><circle cx="35" cy="10" r="3.5" class="ball"/><circle cx="36" cy="10" r="9" class="snap"/></svg>
-        <div><b>Perfect fit.</b> Tap dead-centre in the gap for a gold snap, bonus points and +1 second.</div></li>
+        <div><b>Hit the middle of the gap.</b> You get extra points and time.</div></li>
       <li><svg viewBox="0 0 48 48"><path d="M24 6a18 18 0 1 1-0.1 0" class="ring"/><path d="M8 24h7" class="shard"/><circle cx="12" cy="13" r="3" class="ball"/></svg>
-        <div><b>Coral walls bounce you back.</b> Rings turn slowly, so the gap you need will come round.</div></li>
+        <div><b>Red walls bounce you back.</b> The rings turn, so a gap will come.</div></li>
       <li><svg viewBox="0 0 48 48"><g class="petals"><ellipse cx="24" cy="12" rx="3" ry="7"/><ellipse cx="24" cy="36" rx="3" ry="7"/><ellipse cx="12" cy="24" rx="7" ry="3"/><ellipse cx="36" cy="24" rx="7" ry="3"/></g><circle cx="24" cy="24" r="3" class="ball"/></svg>
-        <div><b>Beat the clock, keep the bloom.</b> 50 seconds to start. Each heart reached adds time and a deeper labyrinth. Glows add +1s. When time ends, mint your mandala on Sui.</div></li>
+        <div><b>Beat the clock.</b> Each middle you reach adds time and a new level. Save your art at the end.</div></li>
     </ol>
-    <div class="modes"><button class="primary" id="howGo">Begin <span>timed</span></button><button class="ghost" id="howBack">Back</button></div>
+    <div class="modes"><button class="primary" id="howGo">Play</button><button class="ghost" id="howBack">Back</button></div>
   </section>
 
   <section class="screen" id="over" hidden>
@@ -78,12 +78,12 @@
     <img id="mandala" alt="The mandala you drew this run" width="300" height="300" />
     <div class="stats">
       <div><b id="oScore">0</b><span>score</span></div>
-      <div><b id="oLaps">0</b><span>hearts</span></div>
-      <div><b id="oPerf">0</b><span>perfect fits</span></div>
+      <div><b id="oLaps">0</b><span>levels</span></div>
+      <div><b id="oPerf">0</b><span>perfect</span></div>
     </div>
-    <label class="name"><span>sign it</span><input id="name" maxlength="16" placeholder="your name" autocomplete="nickname" /></label>
+    <label class="name"><span>name</span><input id="name" maxlength="16" placeholder="your name" autocomplete="nickname" /></label>
     <div class="modes">
-      <button class="primary" id="mint">Mint mandala <span>& join the board</span></button>
+      <button class="primary" id="mint">Save my art</button>
       <button class="ghost" id="again">Play again <span>space</span></button>
     </div>
     <button class="link" id="menu">menu</button>
@@ -92,7 +92,7 @@
 
   <aside class="board" id="board" hidden aria-label="Leaderboard">
     <div class="board-head">
-      <h2>Stillest hands</h2>
+      <h2>Top players</h2>
       <button class="icon-btn" id="closeBoard" aria-label="Close leaderboard"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
     <p class="board-sub" id="boardSub">reading the chain…</p>
@@ -101,11 +101,11 @@
 
   <div class="picker" id="picker" hidden role="dialog" aria-modal="true" aria-labelledby="pickerTitle">
     <div class="picker-card">
-      <div class="board-head"><h2 id="pickerTitle">Connect a wallet</h2>
+      <div class="board-head"><h2 id="pickerTitle">Pick a wallet</h2>
         <button class="icon-btn" id="pickerClose" aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
       <ul id="pickerList"></ul>
       <p class="picker-msg" id="pickerErr" role="alert"></p>
-      <p class="picker-help">No wallet? Install <a href="https://slush.app" target="_blank" rel="noopener">Slush</a>, switch it to <b>Testnet</b>, and grab free test SUI at <a href="https://faucet.sui.io" target="_blank" rel="noopener">faucet.sui.io</a>.</p>
+      <p class="picker-help">No wallet? Get <a href="https://slush.app" target="_blank" rel="noopener">Slush</a>. Set it to <b>Testnet</b>. Free test coins: <a href="https://faucet.sui.io" target="_blank" rel="noopener">faucet.sui.io</a>.</p>
     </div>
   </div>
 

@@ -155,7 +155,7 @@ export class Game {
       this.peel = Math.min(1, this.dropsThisLevel / this.maze.rings);
       if (perfect) {
         this.combo++; this.perfects++;
-        this.addScore(25 + 5 * Math.min(this.combo, 6), bx, by, 'perfect fit');
+        this.addScore(25 + 5 * Math.min(this.combo, 6), bx, by, 'perfect!');
         sfx.snap(); buzz([8, 30, 8]);
         this.ripples.push({ x: bx, y: by, r: 2, life: 1, snap: true });
         this.timeLeft += 1;
@@ -196,7 +196,7 @@ export class Game {
     const lvl = this.level;
     this.cleared++;
     const bonus = CLEAR_BONUS(lvl);
-    this.addScore(100 * lvl, this.cx, this.cy - 10, `labyrinth ${lvl}`);
+    this.addScore(100 * lvl, this.cx, this.cy - 10, `level ${lvl} done`);
     if (this.mode !== 'zen') { this.timeLeft += bonus; this.floaters.push({ x: this.cx, y: this.cy + 26, text: `+${bonus}s`, life: 1.2 }); }
     sfx.peelDone(); buzz([10, 40, 10, 40, 20]);
     for (let i = 0; i < 70; i++) {
@@ -212,7 +212,7 @@ export class Game {
     this.peel = 0; this.peelEase = 0;
     this.level++;
     this.speedMul *= 1.06;
-    this.hooks.onToast?.(`labyrinth ${this.level}`);
+    this.hooks.onToast?.(`level ${this.level}`);
     sfx.levelUp(this.level);
     this.pause = 1.1;
     this.hud();
