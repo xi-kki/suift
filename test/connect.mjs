@@ -1,0 +1,15 @@
+import puppeteer from 'puppeteer-core';
+const b = await puppeteer.launch({ executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: 'new' });
+const p = await b.newPage(); await p.setViewport({ width: 1280, height: 800 });
+const errs = []; p.on('pageerror', (e) => errs.push(e.message)); p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+await p.goto('https://xi-kki.github.io/suift/', { waitUntil: 'networkidle0' });
+const info = await p.evaluate(() => { const el = document.querySelector('mysten-dapp-kit-connect-button'); return { exists: !!el, hasInst: !!el?.instance, shadow: el?.shadowRoot?.innerHTML.slice(0, 300) }; });
+console.log(JSON.stringify(info));
+const box = await (await p.$('mysten-dapp-kit-connect-button')).boundingBox(); console.log('box', JSON.stringify(box));
+await p.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+await new Promise((r) => setTimeout(r, 1500));
+const after = await p.evaluate(() => { const el = document.querySelector('mysten-dapp-kit-connect-button'); const m = el.shadowRoot.querySelector('mysten-dapp-kit-connect-modal'); const d = m?.shadowRoot?.querySelector('dialog'); return { modal: !!m, dialogOpen: d?.open, text: m?.shadowRoot?.textContent.replace(/\s+/g, ' ').slice(0, 300) }; });
+console.log(JSON.stringify(after));
+await p.screenshot({ path: process.argv[2] + '/connect.png' });
+console.log('ERR', errs.filter((e) => !/slush|ERR_FAILED|metadata/i.test(e)).join('|') || 'none');
+await b.close();

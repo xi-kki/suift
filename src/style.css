@@ -111,3 +111,30 @@ kbd { font-family: var(--sans); font-size: 11px; border: 1px solid var(--faint);
 .how .arrow { stroke: var(--muted); stroke-linecap: round; }
 .how .petals ellipse { fill: hsl(300 60% 70% / 0.35); stroke: hsl(300 70% 80% / 0.6); stroke-width: 0.6; }
 @media (max-height: 700px) { .how li { font-size: 14px; } .how-title { margin: 4px 0 12px; } }
+/* labyrinth v2 */
+.wallet { position: relative; }
+.chip { min-height: 40px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--faint); background: rgba(9, 10, 14, 0.5); color: var(--paper); font: 500 14px var(--sans); cursor: pointer; backdrop-filter: blur(8px); }
+.chip:hover { border-color: rgba(242, 237, 228, 0.4); }
+.chip.on::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #9be7b4; margin-right: 8px; vertical-align: 1px; box-shadow: 0 0 8px #9be7b4; }
+.wallet-menu { position: absolute; right: 0; top: 48px; background: #14161d; border: 1px solid var(--faint); border-radius: 12px; padding: 6px; z-index: 8; }
+.wallet-menu button { background: none; border: 0; color: var(--paper); font: 500 14px var(--sans); padding: 10px 14px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+.wallet-menu button:hover { background: rgba(242, 237, 228, 0.06); }
+.gate { margin-top: 34px; }
+#gateNote b { color: var(--paper); font-weight: 500; }
+.timer { font-family: var(--sans); font-weight: 500; font-size: 14px; letter-spacing: 0.18em; color: rgba(255, 240, 215, 0.8); font-variant-numeric: tabular-nums; }
+.timer.low { color: var(--coral); }
+.how .lip { fill: var(--gold); }
+.picker { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; background: rgba(5, 6, 9, 0.6); backdrop-filter: blur(6px); padding: 16px; }
+.picker-card { width: min(380px, 100%); background: #12141a; border: 1px solid var(--faint); border-radius: 20px; padding: 20px; animation: rise 0.5s var(--ease) both; }
+.picker-card h2 { font-family: var(--serif); font-weight: 400; font-size: 26px; }
+#pickerList { list-style: none; padding: 0; margin: 16px 0 6px; display: flex; flex-direction: column; gap: 8px; }
+#pickerList button { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 14px; min-height: 56px; border-radius: 14px; border: 1px solid var(--faint); background: rgba(242, 237, 228, 0.03); color: var(--paper); font: 500 16px var(--sans); cursor: pointer; text-align: left; }
+#pickerList button:hover, #pickerList button:focus-visible { border-color: rgba(255, 230, 170, 0.5); outline: none; }
+#pickerList img { border-radius: 8px; }
+#pickerList .none { color: var(--muted); font-size: 14px; padding: 8px 0; }
+.picker-msg { min-height: 20px; font-size: 13px; color: var(--muted); margin: 6px 0; line-height: 1.5; }
+.picker-msg.err { color: var(--coral); }
+.picker-help { font-size: 12px; color: var(--muted); line-height: 1.6; margin-top: 8px; }
+.picker-help a, .picker-help b { color: var(--paper); }
+#over .link { margin-top: 10px; }
+.tagline { margin-top: 14px; font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--gold); opacity: 0.75; }

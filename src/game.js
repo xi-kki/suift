@@ -1,12 +1,19 @@
 import * as sfx from './audio.js';
 import { drawMandala, FOLD } from './mandala.js';
 
+// Suift: a circular labyrinth. The ball orbits a lane; tap to slip through a gap
+// in the wall below. Reach the glowing heart before the timer runs out.
 const TAU = Math.PI * 2;
-const angDist = (a, b) => { let d = ((a - b) % TAU + TAU) % TAU; return d > Math.PI ? TAU - d : d; };
-const signedAng = (a, b) => { let d = ((b - a) % TAU + TAU) % TAU; return d > Math.PI ? d - TAU : d; };
+const norm = (a) => ((a % TAU) + TAU) % TAU;
+const signed = (from, to) => { const d = norm(to - from); return d > Math.PI ? d - TAU : d; };
+const adist = (a, b) => Math.abs(signed(a, b));
 const buzz = (p) => { try { navigator.vibrate && navigator.vibrate(p); } catch {} };
-const lerp = (a, b, t) => a + (b - a) * t;
+const rnd = (a, b) => a + Math.random() * (b - a);
+const ease = (t) => 1 - Math.pow(1 - t, 3);
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const START_TIME = 50;
+const CLEAR_BONUS = (lvl) => 7 + Math.min(lvl, 5);
 
 export class Game {
   constructor(canvas, hooks) {
@@ -15,10 +22,10 @@ export class Game {
     this.hooks = hooks; // { onHud, onEnd, onToast }
     this.mandalaCanvas = document.createElement('canvas');
     this.artCanvas = document.createElement('canvas');
-    this.running = false;
     this.t = 0;
+    this.layerHue = 220;
     this.resize();
-    addEventListener('resize', () => this.resize());
+    addEventListener('resize', () => { this.resize(); if (this.maze) this.layout(); });
     this.idle();
     requestAnimationFrame((ts) => this.loop(ts));
   }
@@ -26,212 +33,297 @@ export class Game {
   resize() {
     const dpr = Math.min(devicePixelRatio || 1, 2);
     const w = innerWidth, h = innerHeight;
-    this.dpr = dpr; this.w = w; this.h = h;
+    Object.assign(this, { dpr, w, h });
     this.c.width = w * dpr; this.c.height = h * dpr;
     this.c.style.width = w + 'px'; this.c.style.height = h + 'px';
-    this.cx = w / 2; this.cy = h / 2 + (h > w ? -h * 0.02 : 0);
-    this.R = Math.min(w, h) * (w < 600 ? 0.36 : 0.3);
-    this.paintArt();
+    this.cx = w / 2; this.cy = h / 2 - (h > w ? h * 0.03 : 0);
+    this.R = Math.min(w * 0.44, h * 0.36, 360);
+    this.paintArt(this.layerHue);
+    if (this.petals?.length) this.renderMandala();
   }
 
-  // the hidden artwork revealed by peeling — a soft generative aurora per layer
-  paintArt(seedHue = this.layerHue ?? 210) {
-    const s = Math.ceil(this.R * 2.4 * this.dpr);
+  paintArt(hue) {
+    const s = Math.ceil(this.R * 2.3 * this.dpr);
     const a = this.artCanvas; a.width = a.height = s;
-    const g = a.getContext('2d');
-    const c = s / 2;
-    // soft aurora: many wide blobs spread across the whole disc
+    const g = a.getContext('2d'), c = s / 2;
     for (let i = 0; i < 11; i++) {
-      const ang = (i / 11) * TAU + seedHue * 0.1;
-      const d = s * (0.12 + (i % 3) * 0.1);
+      const ang = (i / 11) * TAU + hue * 0.1, d = s * (0.1 + (i % 3) * 0.1);
       const x = c + Math.cos(ang) * d, y = c + Math.sin(ang) * d;
       const grd = g.createRadialGradient(x, y, 0, x, y, s * 0.3);
-      grd.addColorStop(0, `hsla(${seedHue + i * 14},55%,60%,0.16)`);
-      grd.addColorStop(1, `hsla(${seedHue + i * 14},55%,40%,0)`);
+      grd.addColorStop(0, `hsla(${hue + i * 14},55%,60%,0.15)`);
+      grd.addColorStop(1, `hsla(${hue + i * 14},55%,40%,0)`);
       g.fillStyle = grd; g.fillRect(0, 0, s, s);
     }
-    // fine concentric grain, like rings in sand
-    g.strokeStyle = `hsla(${seedHue},60%,85%,0.05)`; g.lineWidth = 1;
-    for (let r = s * 0.06; r < s * 0.46; r += s * 0.018) { g.beginPath(); g.arc(c, c, r, 0, TAU); g.stroke(); }
     g.globalCompositeOperation = 'destination-in';
-    const m = g.createRadialGradient(c, c, 0, c, c, s * 0.42);
-    m.addColorStop(0, 'rgba(0,0,0,.7)'); m.addColorStop(0.75, 'rgba(0,0,0,1)'); m.addColorStop(1, 'rgba(0,0,0,0)');
+    const m = g.createRadialGradient(c, c, 0, c, c, s * 0.45);
+    m.addColorStop(0, 'rgba(0,0,0,.8)'); m.addColorStop(0.8, 'rgba(0,0,0,1)'); m.addColorStop(1, 'rgba(0,0,0,0)');
     g.fillStyle = m; g.fillRect(0, 0, s, s);
   }
 
   idle() {
     this.state = 'idle';
-    this.ball = { a: -Math.PI / 2, dir: 1, alive: true };
-    this.speed = 0.9;
-    this.orbs = []; this.shards = []; this.parts = []; this.ripples = []; this.floaters = [];
-    this.petals = [];
-    this.collected = [];
-    this.trail = [];
+    this.level = 1;
+    this.petals = []; this.parts = []; this.ripples = []; this.floaters = []; this.trail = [];
+    this.build(2, true);
   }
 
+  // ---------- labyrinth generation ----------
+  build(level, demo = false) {
+    const rings = Math.min(6, 2 + Math.floor(level / 2)); // 2,3,3,4,4,5,5,6
+    const rot = 0.1 + Math.min(level, 10) * 0.03;
+    const walls = [], lanes = [];
+    for (let k = 0; k < rings; k++) {
+      const nGaps = level <= 2 ? 2 : k === 0 && level < 6 ? 2 : 1;
+      const base = rnd(0, TAU);
+      walls.push({
+        phi: rnd(0, TAU),
+        spin: (k % 2 ? -1 : 1) * rot * rnd(0.75, 1.25),
+        gaps: Array.from({ length: nGaps }, (_, i) => base + (i * TAU) / nGaps),
+        glow: 0,
+      });
+      const nSpokes = level === 1 ? 0 : level <= 3 ? (k % 2 ? 1 : 0) : Math.min(2, 1 + Math.floor(k / 2));
+      lanes.push({
+        phi: rnd(0, TAU),
+        spin: (k % 2 ? 1 : -1) * rot * rnd(0.5, 0.9), // differs from wall so gaps drift between sections
+        spokes: Array.from({ length: nSpokes }, (_, i) => (i * TAU) / Math.max(1, nSpokes) + rnd(-0.4, 0.4)),
+        orbs: [],
+      });
+    }
+    this.maze = { rings, walls, lanes, demo };
+    this.layout();
+    for (let k = 0; k < rings; k++) {
+      const n = demo ? 0 : 1 + (k < 2 ? 1 : 0);
+      for (let i = 0; i < n; i++) this.maze.lanes[k].orbs.push({ a: rnd(0, TAU), hue: (this.layerHue + rnd(0, 160)) % 360, born: this.t });
+    }
+    this.ball = { lane: 0, a: -Math.PI / 2, dir: 1, r: this.laneR[0], drop: null };
+    this.dropsThisLevel = 0;
+    this.buildT = 1;
+  }
+
+  layout() {
+    const { rings } = this.maze;
+    this.goalR = this.R * 0.15;
+    this.gap = (this.R - this.goalR) / rings;
+    this.laneR = Array.from({ length: rings }, (_, k) => this.R - k * this.gap);
+    this.wallR = this.laneR.map((r) => r - this.gap / 2);
+    this.br = Math.max(5, Math.min(9, this.gap * 0.22));
+    if (this.ball && !this.ball.drop) this.ball.r = this.laneR[Math.min(this.ball.lane, rings - 1)] ?? this.goalR;
+  }
+
+  gapHalf(k) {
+    // angular half-width; never narrower than the ball + margin
+    const r = this.wallR[k];
+    const base = Math.max(0.12, 0.36 - this.level * 0.025);
+    return Math.max(base, (this.br * 1.9) / r);
+  }
+  spokeHalf(k) { return 3 / this.laneR[k]; }
+
+  // ---------- game flow ----------
   start(mode) {
-    this.mode = mode; // 'calm' | 'zen'
+    this.mode = mode;
     this.state = 'play';
-    this.ball = { a: -Math.PI / 2, dir: 1, alive: true, reform: 0, inv: 1.2 };
-    this.base = 1.55; this.mult = 1; this.level = 1; this.levelT = 0;
-    this.score = 0; this.laps = 0; this.lapAcc = 0; this.perfects = 0;
-    this.combo = 0; this.comboT = 0; this.step = 0;
-    this.lives = mode === 'zen' ? Infinity : 3;
-    this.orbs = []; this.shards = []; this.parts = []; this.ripples = []; this.floaters = [];
-    this.petals = []; this.collected = []; this.trail = [];
-    this.peel = 0; this.layer = 0; this.layerHue = 200 + Math.random() * 60; this.paintArt(this.layerHue);
-    this.spawnT = 0.6; this.shardT = 2.2;
-    this.elapsed = 0;
+    this.level = 1; this.score = 0; this.perfects = 0; this.cleared = 0;
+    this.combo = 0; this.timeLeft = START_TIME; this.elapsed = 0; this.lastSec = START_TIME;
+    this.petals = []; this.collected = []; this.parts = []; this.ripples = []; this.floaters = []; this.trail = [];
+    this.layerHue = 200 + rnd(0, 60); this.paintArt(this.layerHue); this.peel = 0; this.peelEase = 0;
+    this.speedMul = 1;
+    this.build(1);
     sfx.padLevel(0.55);
     this.hud();
   }
 
+  laneSpeed(k) {
+    const lin = 150 * this.speedMul; // px/s along the lane
+    return Math.min(3.4, lin / this.laneR[k]);
+  }
+
   tap() {
-    if (this.state !== 'play' || !this.ball.alive) return;
-    this.ball.dir *= -1;
-    sfx.tick(); buzz(4);
-    const bx = this.cx + Math.cos(this.ball.a) * this.R, by = this.cy + Math.sin(this.ball.a) * this.R;
-    this.ripples.push({ x: bx, y: by, r: 4, life: 1, hue: this.layerHue });
-    if (!reduced) this.ripples.push({ x: this.cx, y: this.cy, r: this.R * 0.92, life: 0.6, hue: this.layerHue, ring: true });
-    // perfect fit: turning away just before a shard
-    for (const s of this.shards) {
-      if (s.fade < 1 || s.used) continue;
-      const ahead = signedAng(this.ball.a, s.a) * -this.ball.dir; // >0 => shard was ahead (before flip)
-      const gap = angDist(this.ball.a, s.a) - s.half;
-      if (ahead > 0 && gap > 0 && gap < 0.2) {
-        s.used = true;
-        this.perfects++;
-        this.addScore(25, bx, by, 'perfect fit');
+    if (this.state !== 'play') return;
+    const b = this.ball;
+    if (b.drop || this.pause > 0 || b.lane >= this.maze.rings) return;
+    if (this.lock > 0) { this.bump = 1; return; } // still settling after a rushed tap
+    const k = b.lane, w = this.maze.walls[k];
+    const half = this.gapHalf(k);
+    const bx = this.cx + Math.cos(b.a) * b.r, by = this.cy + Math.sin(b.a) * b.r;
+    let best = Infinity;
+    for (const ga of w.gaps) best = Math.min(best, adist(b.a, ga + w.phi));
+    const usable = half - (this.br * 0.9) / this.wallR[k];
+    if (best <= usable) {
+      const perfect = best <= usable * 0.35;
+      b.drop = { from: b.r, to: k + 1 < this.maze.rings ? this.laneR[k + 1] : 0, t: 0, perfect };
+      this.dropsThisLevel++;
+      this.peel = Math.min(1, this.dropsThisLevel / this.maze.rings);
+      if (perfect) {
+        this.combo++; this.perfects++;
+        this.addScore(25 + 5 * Math.min(this.combo, 6), bx, by, 'perfect fit');
         sfx.snap(); buzz([8, 30, 8]);
-        this.ripples.push({ x: bx, y: by, r: 2, life: 1, hue: 45, snap: true });
-        this.snapFlash = 1;
-        break;
+        this.ripples.push({ x: bx, y: by, r: 2, life: 1, snap: true });
+        this.timeLeft += 1;
+        this.floaters.push({ x: bx, y: by + 18, text: '+1s', life: 1 });
+      } else {
+        this.combo = 0;
+        this.addScore(10, bx, by);
+        sfx.orb(2 + k); buzz(6);
       }
+      w.glow = 1;
+      this.petals.push({ a: ((norm(b.a) / TAU) * FOLD) % 1, r: Math.min(1, k / 5 + rnd(0, 0.15)), s: perfect ? 0.9 : 0.45, hue: perfect ? 45 : this.layerHue });
+      this.renderMandala();
+    } else {
+      // rushed tap: gap locks for one breath, which teaches waiting over spamming
+      this.combo = 0;
+      this.lock = 0.6;
+      this.rushed = (this.rushed || 0) + 1;
+      sfx.tick(); buzz(3);
+      this.ripples.push({ x: bx, y: by, r: 3, life: 0.6, hue: this.layerHue });
+      this.bump = 1;
     }
+    this.hud();
   }
 
   addScore(n, x, y, label) {
     this.score += n;
     this.floaters.push({ x, y, text: label ? `${label} +${n}` : `+${n}`, life: 1 });
-    this.hud();
   }
 
   hud() {
     this.hooks.onHud?.({
-      score: this.score, level: this.level, lives: this.lives, laps: this.laps,
-      perfects: this.perfects, combo: this.combo, collected: this.collected, mult: this.mult, peel: this.peel,
+      score: this.score, level: this.level, time: this.mode === 'zen' ? null : Math.max(0, this.timeLeft),
+      combo: this.combo, collected: this.collected, perfects: this.perfects,
     });
   }
 
-  freeAngle(minFromBall = 1.1) {
-    for (let i = 0; i < 30; i++) {
-      const a = Math.random() * TAU;
-      if (angDist(a, this.ball.a) < minFromBall) continue;
-      if (this.shards.some((s) => angDist(a, s.a) < s.half + 0.35)) continue;
-      if (this.orbs.some((o) => angDist(a, o.a) < 0.35)) continue;
-      return a;
+  reachGoal() {
+    const lvl = this.level;
+    this.cleared++;
+    const bonus = CLEAR_BONUS(lvl);
+    this.addScore(100 * lvl, this.cx, this.cy - 10, `labyrinth ${lvl}`);
+    if (this.mode !== 'zen') { this.timeLeft += bonus; this.floaters.push({ x: this.cx, y: this.cy + 26, text: `+${bonus}s`, life: 1.2 }); }
+    sfx.peelDone(); buzz([10, 40, 10, 40, 20]);
+    for (let i = 0; i < 70; i++) {
+      const k = rnd(0, TAU), v = rnd(40, 220);
+      this.parts.push({ x: this.cx, y: this.cy, vx: Math.cos(k) * v, vy: Math.sin(k) * v, life: 1.4, hue: (this.layerHue + rnd(-30, 60)) % 360, s: rnd(1, 3) });
     }
-    return null;
+    this.ripples.push({ x: this.cx, y: this.cy, r: this.goalR, life: 1.2, hue: this.layerHue, ring: true });
+    // petals ring for the bloom
+    for (let i = 0; i < 3; i++) this.petals.push({ a: rnd(0, 1), r: 0.2 + i * 0.25, s: 1, hue: (this.layerHue + i * 30) % 360 });
+    this.renderMandala();
+    this.prevArt = this.cloneArt(); this.revealFlash = 1;
+    this.layerHue = (this.layerHue + 70) % 360; this.paintArt(this.layerHue);
+    this.peel = 0; this.peelEase = 0;
+    this.level++;
+    this.speedMul *= 1.06;
+    this.hooks.onToast?.(`labyrinth ${this.level}`);
+    sfx.levelUp(this.level);
+    this.pause = 1.1;
+    this.hud();
   }
 
+  end() {
+    if (this.state !== 'play') return;
+    this.state = 'over';
+    sfx.padLevel(0.25);
+    this.hooks.onEnd?.({ score: this.score, laps: this.cleared, perfects: this.perfects, petals: this.petals.slice(), level: this.level, time: this.elapsed });
+  }
+  finishZen() { this.end(); }
+
+  // ---------- simulation ----------
   update(dt) {
     this.t += dt;
-    for (const r of this.ripples) { r.r += dt * (r.ring ? 40 : r.snap ? 160 : 110); r.life -= dt * (r.ring ? 1.1 : 0.9); }
+    for (const r of this.ripples) { r.r += dt * (r.ring ? 120 : r.snap ? 160 : 110); r.life -= dt * 0.9; }
     this.ripples = this.ripples.filter((r) => r.life > 0);
     for (const p of this.parts) { p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.96; p.vy *= 0.96; p.life -= dt * 0.7; }
     this.parts = this.parts.filter((p) => p.life > 0);
     for (const f of this.floaters) { f.y -= dt * 26; f.life -= dt * 0.8; }
     this.floaters = this.floaters.filter((f) => f.life > 0);
-    this.snapFlash = Math.max(0, (this.snapFlash || 0) - dt * 2.5);
+    this.bump = Math.max(0, (this.bump || 0) - dt * 3);
+    this.lock = Math.max(0, (this.lock || 0) - dt);
+    this.revealFlash = Math.max(0, (this.revealFlash || 0) - dt * 0.7);
+    this.buildT = Math.max(0, (this.buildT || 0) - dt * 1.4);
 
-    if (this.state === 'idle') { this.ball.a += dt * 0.6; this.pushTrail(); return; }
+    const m = this.maze;
+    for (const w of m.walls) { w.phi += w.spin * dt; w.glow = Math.max(0, w.glow - dt * 2); }
+    for (const l of m.lanes) l.phi += l.spin * dt;
+
+    if (this.state === 'idle') { this.ball.a += dt * 0.7; this.pushTrail(); return; }
     if (this.state !== 'play') return;
 
+    if (this.pause > 0) {
+      this.pause -= dt;
+      if (this.pause <= 0) this.build(this.level);
+      return;
+    }
+
     this.elapsed += dt;
-    // gentle speed-up every 15s
-    this.levelT += dt;
-    if (this.levelT >= 15) {
-      this.levelT = 0; this.level++; this.mult *= 1.06;
-      sfx.levelUp(this.level);
-      this.hooks.onToast?.(`tempo ${this.level}`);
-      this.ripples.push({ x: this.cx, y: this.cy, r: this.R * 0.4, life: 1, hue: this.layerHue, ring: true });
-      this.hud();
+    if (this.mode !== 'zen') {
+      this.timeLeft -= dt;
+      const s = Math.ceil(this.timeLeft);
+      if (s !== this.lastSec) { this.lastSec = s; this.hud(); if (s <= 5 && s > 0) sfx.tick(); }
+      if (this.timeLeft <= 0) { this.timeLeft = 0; this.hud(); this.end(); return; }
     }
 
     const b = this.ball;
-    if (b.inv > 0) b.inv -= dt;
-    if (!b.alive) {
-      b.reform -= dt;
-      if (b.reform <= 0) { b.alive = true; b.inv = 1.6; }
+    if (b.drop) {
+      b.drop.t += dt / 0.28;
+      const e = ease(Math.min(1, b.drop.t));
+      b.r = b.drop.from + (b.drop.to - b.drop.from) * e;
+      if (b.drop.t >= 1) {
+        b.drop = null;
+        b.lane++;
+        if (b.lane >= m.rings) { b.r = 0; this.reachGoal(); return; }
+        b.r = this.laneR[b.lane];
+      }
+      this.pushTrail();
       return;
     }
-    const w = this.base * this.mult * b.dir;
-    b.a = (b.a + w * dt + TAU) % TAU;
-    this.lapAcc += Math.abs(w * dt);
-    if (this.lapAcc >= TAU) { this.lapAcc -= TAU; this.laps++; this.hud(); }
-    this.pushTrail();
 
-    // combo decay
-    if (this.combo > 0) { this.comboT -= dt; if (this.comboT <= 0) { this.combo = 0; this.step = 0; this.hud(); } }
-
-    // spawns
-    this.spawnT -= dt;
-    if (this.spawnT <= 0 && this.orbs.length < 3) {
-      const a = this.freeAngle(0.9);
-      if (a !== null) this.orbs.push({ a, born: this.t, hue: (this.layerHue + Math.random() * 160) % 360 });
-      this.spawnT = 1.1 + Math.random() * 0.8;
+    const k = b.lane, lane = m.lanes[k];
+    const step = this.laneSpeed(k) * b.dir * dt;
+    const prev = b.a;
+    b.a = norm(b.a + step);
+    // spokes: bounce softly
+    const ballAng = this.br / this.laneR[k];
+    for (const sa of lane.spokes) {
+      const s = norm(sa + lane.phi);
+      const lim = ballAng + this.spokeHalf(k);
+      const d0 = signed(prev, s), d = signed(b.a, s);
+      const crossed = Math.abs(d0) < 0.5 && Math.sign(d0) !== Math.sign(d) && Math.sign(d0) === b.dir;
+      if ((Math.abs(d) < lim && Math.sign(d) === b.dir) || crossed) {
+        const side = Math.sign(d0) || b.dir; // stay on the side we came from
+        b.dir *= -1;
+        b.a = norm(s - side * (lim + 0.005));
+        sfx.tick(); buzz(3);
+        const bx = this.cx + Math.cos(b.a) * b.r, by = this.cy + Math.sin(b.a) * b.r;
+        this.ripples.push({ x: bx, y: by, r: 3, life: 0.5, hue: 20 });
+        break;
+      }
     }
-    const maxShards = Math.min(1 + Math.floor(this.level / 2), 5);
-    this.shardT -= dt;
-    if (this.shardT <= 0 && this.shards.length < maxShards) {
-      const a = this.freeAngle(1.4);
-      if (a !== null) this.shards.push({ a, half: 0.11 + Math.random() * 0.05, fade: 0, life: 7 + Math.random() * 4 });
-      this.shardT = Math.max(1.2, 3.2 - this.level * 0.15);
-    }
-    for (const s of this.shards) { s.fade = Math.min(1, s.fade + dt / 0.9); s.life -= dt; }
-    this.shards = this.shards.filter((s) => s.life > 0);
-
-    // collisions
-    const bx = this.cx + Math.cos(b.a) * this.R, by = this.cy + Math.sin(b.a) * this.R;
-    const hitA = 13 / this.R;
-    this.orbs = this.orbs.filter((o) => {
-      if (angDist(o.a, b.a) > hitA + 0.03) return true;
-      this.combo++; this.comboT = 2.6; this.step++;
-      const pts = 10 * Math.min(this.combo, 8);
-      this.addScore(pts, bx, by);
-      sfx.orb(this.step); buzz(6);
+    // gap alignment telegraph
+    const w = m.walls[k], half = this.gapHalf(k), usable = half - (this.br * 0.9) / this.wallR[k];
+    this.aligned = w.gaps.some((ga) => adist(b.a, ga + w.phi) <= usable);
+    // orbs
+    lane.orbs = lane.orbs.filter((o) => {
+      if (adist(o.a, b.a) > ballAng + 0.05 && adist(o.a, prev) > ballAng + 0.05) return true;
+      const bx = this.cx + Math.cos(b.a) * b.r, by = this.cy + Math.sin(b.a) * b.r;
+      this.addScore(15, bx, by);
+      if (this.mode !== 'zen') { this.timeLeft += 1; }
       this.collected.push(o.hue);
-      this.petals.push({
-        a: ((o.a / TAU) * FOLD) % 1, r: Math.min(1, this.petals.length / 40 + Math.random() * 0.25),
-        s: Math.min(1, 0.25 + this.combo / 8), hue: o.hue,
-      });
+      sfx.orb(5 + this.collected.length % 7); buzz(6);
+      this.petals.push({ a: ((norm(o.a) / TAU) * FOLD) % 1, r: Math.min(1, this.petals.length / 40 + rnd(0, 0.25)), s: 0.6, hue: o.hue });
       this.renderMandala();
       for (let i = 0; i < 14; i++) {
-        const k = Math.random() * TAU, v = 30 + Math.random() * 70;
-        this.parts.push({ x: bx, y: by, vx: Math.cos(k) * v, vy: Math.sin(k) * v, life: 1, hue: o.hue, s: 1.5 + Math.random() * 2 });
+        const q = rnd(0, TAU), v = rnd(30, 100);
+        this.parts.push({ x: bx, y: by, vx: Math.cos(q) * v, vy: Math.sin(q) * v, life: 1, hue: o.hue, s: rnd(1.5, 3.5) });
       }
       this.ripples.push({ x: bx, y: by, r: 6, life: 0.8, hue: o.hue });
-      // peel the film a little
-      this.peel += 1 / 18;
-      if (this.peel >= 1) {
-        this.peel = 0; this.layer++;
-        sfx.peelDone();
-        this.hooks.onToast?.('layer revealed');
-        this.revealFlash = 1;
-        this.layerHue = (this.layerHue + 70) % 360;
-        this.prevArt = this.cloneArt();
-        this.paintArt(this.layerHue);
-      }
+      this.hud();
       return false;
     });
-    this.revealFlash = Math.max(0, (this.revealFlash || 0) - dt * 0.7);
+    this.pushTrail();
+  }
 
-    if (b.inv <= 0) {
-      for (const s of this.shards) {
-        if (s.fade < 1) continue;
-        if (angDist(s.a, b.a) < s.half + hitA * 0.6) { this.soften(bx, by); break; }
-      }
-    }
+  pushTrail() {
+    this.trail.push({ x: Math.cos(this.ball.a) * this.ball.r, y: Math.sin(this.ball.a) * this.ball.r, t: this.t });
+    while (this.trail.length && this.t - this.trail[0].t > 0.4) this.trail.shift();
   }
 
   cloneArt() {
@@ -239,90 +331,122 @@ export class Game {
     c.getContext('2d').drawImage(this.artCanvas, 0, 0); return c;
   }
 
-  soften(bx, by) {
-    const b = this.ball;
-    sfx.soften(); buzz(30);
-    for (let i = 0; i < 40; i++) {
-      const k = Math.random() * TAU, v = 20 + Math.random() * 90;
-      this.parts.push({ x: bx, y: by, vx: Math.cos(k) * v, vy: Math.sin(k) * v, life: 1.4, hue: 30, s: 1 + Math.random() * 2.5 });
-    }
-    this.combo = 0; this.step = 0;
-    this.shards = this.shards.filter((s) => angDist(s.a, b.a) > 0.9);
-    if (this.mode === 'zen') { b.inv = 1.4; this.hud(); return; }
-    this.lives--;
-    this.hud();
-    if (this.lives <= 0) { this.end(); return; }
-    b.alive = false; b.reform = 1.3;
-  }
-
-  end() {
-    this.state = 'over';
-    sfx.padLevel(0.25);
-    this.hooks.onEnd?.({ score: this.score, laps: this.laps, perfects: this.perfects, petals: this.petals.slice(), level: this.level, time: this.elapsed });
-  }
-
-  finishZen() { if (this.state === 'play') this.end(); }
-
-  pushTrail() {
-    this.trail.push({ a: this.ball.a, t: this.t });
-    while (this.trail.length && this.t - this.trail[0].t > 0.45) this.trail.shift();
-  }
-
   renderMandala() {
-    const m = this.mandalaCanvas; const s = Math.ceil(this.R * 1.6 * this.dpr);
+    const m = this.mandalaCanvas, s = Math.ceil(this.R * 1.6 * this.dpr);
     m.width = m.height = s;
-    const g = m.getContext('2d');
-    drawMandala(g, this.petals, s / 2, s / 2, (s / 2) / 110);
+    drawMandala(m.getContext('2d'), this.petals, s / 2, s / 2, s / 2 / 110);
   }
 
+  // ---------- render ----------
   draw() {
-    const g = this.g, { w, h, cx, cy, R, dpr } = this;
+    const g = this.g, { w, h, cx, cy, dpr } = this;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    // background
     const bg = g.createRadialGradient(cx, cy, 0, cx, cy, Math.max(w, h) * 0.75);
     bg.addColorStop(0, '#151821'); bg.addColorStop(1, '#090a0e');
     g.fillStyle = bg; g.fillRect(0, 0, w, h);
 
-    // peeled artwork (revealed wedge with curled edge)
+    // peeled art: a wedge that grows with each ring you pass
     if (this.state !== 'idle') {
       const art = this.artCanvas, size = art.width / dpr;
       if (this.prevArt && this.revealFlash > 0) {
-        g.globalAlpha = 0.55 + this.revealFlash * 0.4;
+        g.globalAlpha = this.revealFlash * 0.9;
         g.drawImage(this.prevArt, cx - size / 2, cy - size / 2, size, size);
         g.globalAlpha = 1;
       }
-      const ang = this.peelEase = lerp(this.peelEase || 0, this.peel * TAU, 0.08);
-      if (ang > 0.01) {
+      this.peelEase += (this.peel * TAU - this.peelEase) * 0.08;
+      if (this.peelEase > 0.01) {
         g.save();
-        g.beginPath(); g.moveTo(cx, cy); g.arc(cx, cy, size / 2, -Math.PI / 2, -Math.PI / 2 + ang); g.closePath(); g.clip();
+        g.beginPath(); g.moveTo(cx, cy); g.arc(cx, cy, size / 2, -Math.PI / 2, -Math.PI / 2 + this.peelEase); g.closePath(); g.clip();
         g.drawImage(art, cx - size / 2, cy - size / 2, size, size);
         g.restore();
-        // the curling edge of the film
-        const ea = -Math.PI / 2 + ang;
-        const grd = g.createLinearGradient(cx, cy, cx + Math.cos(ea) * R * 1.2, cy + Math.sin(ea) * R * 1.2);
-        grd.addColorStop(0, 'rgba(255,248,236,0)'); grd.addColorStop(1, 'rgba(255,248,236,.28)');
-        g.strokeStyle = grd; g.lineWidth = 1.5;
-        g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + Math.cos(ea) * R * 1.18, cy + Math.sin(ea) * R * 1.18); g.stroke();
       }
     }
 
-    // mandala in the heart, slowly breathing
+    // mandala breathing in the heart
     if (this.petals.length) {
       const m = this.mandalaCanvas, s = m.width / dpr;
-      const breathe = 1 + Math.sin(this.t * 0.8) * 0.015;
-      g.save(); g.translate(cx, cy); g.rotate(reduced ? 0 : this.t * 0.05); g.scale(breathe, breathe);
-      g.globalAlpha = this.state === 'over' ? 0.35 : 0.9;
+      g.save(); g.translate(cx, cy); g.rotate(reduced ? 0 : this.t * 0.05);
+      const k = this.state === 'play' ? 0.3 : 1;
+      g.scale(k, k); g.globalAlpha = this.state === 'over' ? 0.3 : this.state === 'play' ? 0.55 : 0.8;
       g.drawImage(m, -s / 2, -s / 2, s, s);
       g.restore(); g.globalAlpha = 1;
     }
 
-    // ring
-    g.lineWidth = 1.25;
-    g.strokeStyle = `rgba(242,237,228,${0.14 + (this.snapFlash || 0) * 0.3})`;
-    g.beginPath(); g.arc(cx, cy, R, 0, TAU); g.stroke();
-    g.strokeStyle = 'rgba(242,237,228,.05)';
-    g.beginPath(); g.arc(cx, cy, R + 14, 0, TAU); g.stroke();
-    g.beginPath(); g.arc(cx, cy, R - 14, 0, TAU); g.stroke();
+    const mz = this.maze;
+    const appear = 1 - (this.buildT || 0);
+    const scaleIn = 0.9 + 0.1 * ease(appear);
+
+    // goal: soft glowing heart
+    const pulse = 1 + Math.sin(this.t * 2) * 0.06;
+    const gr = this.goalR * scaleIn * pulse;
+    const gg = g.createRadialGradient(cx, cy, 0, cx, cy, gr * 1.8);
+    gg.addColorStop(0, `hsla(${this.layerHue},80%,85%,.55)`); gg.addColorStop(0.5, `hsla(${this.layerHue},70%,70%,.18)`); gg.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = gg; g.beginPath(); g.arc(cx, cy, gr * 1.8, 0, TAU); g.fill();
+    g.strokeStyle = `hsla(${this.layerHue},70%,85%,.35)`; g.lineWidth = 1;
+    g.beginPath(); g.arc(cx, cy, gr * 0.55, 0, TAU); g.stroke();
+
+    // lane guides
+    g.lineWidth = 1;
+    for (let k = 0; k < mz.rings; k++) {
+      g.strokeStyle = `rgba(242,237,228,${0.04 * appear})`;
+      g.beginPath(); g.arc(cx, cy, this.laneR[k] * scaleIn, 0, TAU); g.stroke();
+    }
+
+    // walls with gaps
+    const curLane = this.ball.drop ? -1 : this.ball.lane;
+    g.lineCap = 'round';
+    for (let k = 0; k < mz.rings; k++) {
+      const wl = mz.walls[k], r = this.wallR[k] * scaleIn, half = this.gapHalf(k);
+      const gaps = wl.gaps.map((ga) => norm(ga + wl.phi)).sort((a, b) => a - b);
+      const active = k === curLane && this.state === 'play';
+      const ready = active && this.aligned && !(this.lock > 0);
+      g.lineWidth = 3;
+      g.strokeStyle = `rgba(242,237,228,${(active ? 0.55 : 0.28) * appear + wl.glow * 0.3 + (active ? this.bump * 0.3 : 0)})`;
+      for (let i = 0; i < gaps.length; i++) {
+        const a0 = gaps[i] + half, a1 = (i + 1 < gaps.length ? gaps[i + 1] : gaps[0] + TAU) - half;
+        if (a1 > a0) { g.beginPath(); g.arc(cx, cy, r, a0, a1); g.stroke(); }
+      }
+      // gap lips: glow gold when the ball is lined up => "now"
+      for (const ga of gaps) {
+        for (const e of [ga - half, ga + half]) {
+          const x = cx + Math.cos(e) * r, y = cy + Math.sin(e) * r;
+          g.fillStyle = ready ? 'rgba(255,230,170,.95)' : `rgba(242,237,228,${0.45 * appear})`;
+          g.beginPath(); g.arc(x, y, ready ? 3.2 : 2.2, 0, TAU); g.fill();
+        }
+        if (ready) {
+          const gl = g.createRadialGradient(cx + Math.cos(ga) * r, cy + Math.sin(ga) * r, 0, cx + Math.cos(ga) * r, cy + Math.sin(ga) * r, 26);
+          gl.addColorStop(0, 'rgba(255,230,170,.35)'); gl.addColorStop(1, 'rgba(255,230,170,0)');
+          g.fillStyle = gl; g.beginPath(); g.arc(cx + Math.cos(ga) * r, cy + Math.sin(ga) * r, 26, 0, TAU); g.fill();
+        }
+      }
+      // spokes
+      const lane = mz.lanes[k];
+      g.strokeStyle = `rgba(255,160,140,${0.8 * appear})`; g.lineWidth = 4;
+      for (const sa of lane.spokes) {
+        const a = sa + lane.phi, r0 = (this.laneR[k] + this.gap / 2 - 3) * scaleIn, r1 = (this.wallR[k] + 3) * scaleIn;
+        g.beginPath(); g.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0); g.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1); g.stroke();
+      }
+      // orbs
+      lane.orbs.forEach((o, i) => {
+        const x = cx + Math.cos(o.a) * this.laneR[k] * scaleIn, y = cy + Math.sin(o.a) * this.laneR[k] * scaleIn;
+        const grow = Math.min(1, (this.t - o.born) / 0.5);
+        const rr = (3.5 + Math.sin(this.t * 4 + i) * 0.8) * grow;
+        const og = g.createRadialGradient(x, y, 0, x, y, rr * 4);
+        og.addColorStop(0, `hsla(${o.hue},80%,80%,.5)`); og.addColorStop(1, `hsla(${o.hue},80%,60%,0)`);
+        g.fillStyle = og; g.beginPath(); g.arc(x, y, rr * 4, 0, TAU); g.fill();
+        g.fillStyle = `hsl(${o.hue},75%,82%)`; g.beginPath(); g.arc(x, y, rr, 0, TAU); g.fill();
+      });
+    }
+
+    // timer: a thin arc around everything that unwinds
+    if (this.state === 'play' && this.mode !== 'zen') {
+      const frac = Math.min(1, this.timeLeft / START_TIME);
+      const rr = this.R + 22;
+      g.lineWidth = 2; g.lineCap = 'round';
+      g.strokeStyle = 'rgba(242,237,228,.07)'; g.beginPath(); g.arc(cx, cy, rr, 0, TAU); g.stroke();
+      g.strokeStyle = this.timeLeft < 10 ? `rgba(255,160,140,${0.6 + 0.3 * Math.sin(this.t * 6)})` : 'rgba(255,240,215,.55)';
+      g.beginPath(); g.arc(cx, cy, rr, -Math.PI / 2, -Math.PI / 2 + frac * TAU); g.stroke();
+    }
 
     // ripples
     for (const r of this.ripples) {
@@ -330,64 +454,26 @@ export class Game {
       g.lineWidth = r.snap ? 2 : 1;
       g.beginPath(); g.arc(r.x, r.y, r.r, 0, TAU); g.stroke();
     }
-
-    // shards — soft rounded arcs that fade in (telegraphed)
-    for (const s of this.shards) {
-      const a = Math.min(s.fade, Math.min(1, s.life / 0.8));
-      const pulse = s.fade < 1 ? 0.35 + 0.25 * Math.sin(this.t * 10) : 1;
-      g.lineCap = 'round';
-      g.strokeStyle = `rgba(255,160,140,${a * 0.85 * pulse})`;
-      g.lineWidth = s.fade < 1 ? 4 : 10;
-      g.shadowColor = 'rgba(255,140,120,.55)'; g.shadowBlur = 14;
-      g.beginPath(); g.arc(cx, cy, R, s.a - s.half, s.a + s.half); g.stroke();
-      g.shadowBlur = 0;
-    }
-
-    // orbs — domino glow travels through them when on a combo
-    this.orbs.forEach((o, i) => {
-      const x = cx + Math.cos(o.a) * R, y = cy + Math.sin(o.a) * R;
-      const grow = Math.min(1, (this.t - o.born) / 0.5);
-      const chain = this.combo >= 2 ? 0.5 + 0.5 * Math.sin(this.t * 6 - i * 1.4) : 0.3;
-      const r = (5 + chain * 2) * grow;
-      const grd = g.createRadialGradient(x, y, 0, x, y, r * 4);
-      grd.addColorStop(0, `hsla(${o.hue},80%,80%,.55)`); grd.addColorStop(1, `hsla(${o.hue},80%,60%,0)`);
-      g.fillStyle = grd; g.beginPath(); g.arc(x, y, r * 4, 0, TAU); g.fill();
-      g.fillStyle = `hsl(${o.hue},75%,82%)`; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill();
-    });
-
-    // particles
     for (const p of this.parts) {
       g.fillStyle = `hsla(${p.hue},70%,78%,${Math.min(1, p.life)})`;
       g.beginPath(); g.arc(p.x, p.y, p.s * Math.min(1, p.life), 0, TAU); g.fill();
     }
 
-    // ball trail + ball
+    // ball + trail
     const b = this.ball;
-    if (b.alive) {
+    if (this.pause > 0 && this.state === 'play') { /* ball merged into the heart */ } else {
       for (let i = 1; i < this.trail.length; i++) {
-        const p0 = this.trail[i - 1], p1 = this.trail[i];
-        const k = i / this.trail.length;
-        g.strokeStyle = `rgba(255,246,232,${k * 0.35})`; g.lineWidth = 2 + k * 5; g.lineCap = 'round';
-        g.beginPath(); g.arc(cx, cy, R, p0.a, p1.a, signedAng(p0.a, p1.a) < 0); g.stroke();
+        const p0 = this.trail[i - 1], p1 = this.trail[i], k = i / this.trail.length;
+        g.strokeStyle = `rgba(255,246,232,${k * 0.35})`; g.lineWidth = 1 + k * this.br * 0.8; g.lineCap = 'round';
+        g.beginPath(); g.moveTo(cx + p0.x * scaleIn, cy + p0.y * scaleIn); g.lineTo(cx + p1.x * scaleIn, cy + p1.y * scaleIn); g.stroke();
       }
-      const x = cx + Math.cos(b.a) * R, y = cy + Math.sin(b.a) * R;
-      const blink = b.inv > 0 && this.state === 'play' ? 0.55 + 0.45 * Math.sin(this.t * 18) : 1;
-      const grd = g.createRadialGradient(x, y, 0, x, y, 34);
-      grd.addColorStop(0, `rgba(255,240,215,${0.5 * blink})`); grd.addColorStop(1, 'rgba(255,240,215,0)');
-      g.fillStyle = grd; g.beginPath(); g.arc(x, y, 34, 0, TAU); g.fill();
-      g.fillStyle = `rgba(255,248,238,${blink})`; g.beginPath(); g.arc(x, y, 9, 0, TAU); g.fill();
-    } else {
-      // reforming: particles converge
-      const x = cx + Math.cos(b.a) * R, y = cy + Math.sin(b.a) * R;
-      const k = 1 - Math.max(0, b.reform) / 1.3;
-      for (let i = 0; i < 10; i++) {
-        const ang = i / 10 * TAU + this.t * 2, d = (1 - k) * 40;
-        g.fillStyle = `rgba(255,246,232,${0.3 + k * 0.6})`;
-        g.beginPath(); g.arc(x + Math.cos(ang) * d, y + Math.sin(ang) * d, 2, 0, TAU); g.fill();
-      }
+      const x = cx + Math.cos(b.a) * b.r * scaleIn, y = cy + Math.sin(b.a) * b.r * scaleIn;
+      const glow = g.createRadialGradient(x, y, 0, x, y, this.br * 4);
+      glow.addColorStop(0, 'rgba(255,240,215,.5)'); glow.addColorStop(1, 'rgba(255,240,215,0)');
+      g.fillStyle = glow; g.beginPath(); g.arc(x, y, this.br * 4, 0, TAU); g.fill();
+      g.fillStyle = '#fff8ee'; g.beginPath(); g.arc(x, y, this.br, 0, TAU); g.fill();
     }
 
-    // floating labels
     g.textAlign = 'center'; g.font = '500 13px "Inter Tight", system-ui, sans-serif';
     for (const f of this.floaters) { g.fillStyle = `rgba(255,246,232,${f.life * 0.85})`; g.fillText(f.text, f.x, f.y - 22); }
   }

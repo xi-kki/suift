@@ -1,5 +1,4 @@
 import { createDAppKit } from '@mysten/dapp-kit-core';
-import '@mysten/dapp-kit-core/web';
 import { SuiGrpcClient } from '@mysten/sui/grpc';
 import { Transaction } from '@mysten/sui/transactions';
 import { bcs } from '@mysten/sui/bcs';
@@ -38,6 +37,15 @@ export async function fetchBoard() {
     entries: b.entries.map((e) => ({ ...e, score: Number(e.score), laps: Number(e.laps), perfects: Number(e.perfects) })),
   };
 }
+
+export const wallets = () => dAppKit.stores.$wallets.get();
+export const onWallets = (fn) => dAppKit.stores.$wallets.subscribe(fn);
+
+export async function connect(wallet) {
+  const r = await dAppKit.connectWallet({ wallet });
+  return r.accounts?.[0]?.address;
+}
+export const disconnect = () => dAppKit.disconnectWallet();
 
 export function account() {
   const c = dAppKit.stores.$connection.get();

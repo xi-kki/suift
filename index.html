@@ -3,37 +3,38 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-  <title>Suift — a calm orbit</title>
-  <meta name="description" content="Suift is a calm, oddly satisfying orbit game on Sui. Turn the ball, gather light, peel back hidden art, and mint the mandala you draw." />
+  <title>Suift — a calm labyrinth</title>
+  <meta name="application-name" content="Suift" />
+  <meta name="description" content="Suift is a calm, oddly satisfying circular labyrinth on Sui. Slip a ball through turning rings to the glowing heart before time runs out, then mint the mandala you drew." />
   <meta name="theme-color" content="#090a0e" />
-  <meta property="og:title" content="Suift — a calm orbit" />
-  <meta property="og:description" content="An oddly satisfying orbit game on Sui. Every run draws a mandala you can mint." />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23090a0e'/><circle cx='16' cy='16' r='10' fill='none' stroke='%23f2ede4' stroke-opacity='.4'/><circle cx='26' cy='16' r='3.5' fill='%23fff6e8'/></svg>" />
+  <meta property="og:title" content="Suift — a calm labyrinth" />
+  <meta property="og:description" content="An oddly satisfying circular labyrinth on Sui. Every run draws a mandala you can mint." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23090a0e'/><circle cx='16' cy='16' r='11' fill='none' stroke='%23f2ede4' stroke-opacity='.45' stroke-dasharray='52 8'/><circle cx='16' cy='16' r='6' fill='none' stroke='%23f2ede4' stroke-opacity='.45' stroke-dasharray='26 6'/><circle cx='16' cy='16' r='2' fill='%23fff6e8'/></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
-  <canvas id="stage" aria-label="Suift game"></canvas>
+  <canvas id="stage" aria-label="Suift labyrinth"></canvas>
 
   <header class="top">
     <div class="brand" aria-hidden="true">suift</div>
     <div class="top-right">
-      <button class="icon-btn" id="mute" aria-label="Mute sound" title="Sound">
+      <button class="icon-btn" id="mute" aria-label="Mute sound" title="Sound (M)">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 10v4h3l5 4V6L7 10H4z"/><path class="wave" d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/></svg>
       </button>
-      <span id="connectSlot"></span>
+      <div class="wallet">
+        <button class="chip" id="walletChip">Connect wallet</button>
+        <div class="wallet-menu" id="walletMenu" hidden><button id="disconnect">Disconnect</button></div>
+      </div>
     </div>
   </header>
 
   <div class="hud" id="hud" hidden>
+    <div class="timer" id="timer">0:50</div>
     <div class="score"><span id="score">0</span><small id="combo"></small></div>
-    <div class="meta">
-      <span id="lives"></span>
-      <span class="dot">·</span>
-      <span id="tempo">tempo 1</span>
-    </div>
+    <div class="meta"><span id="tempo">labyrinth 1</span></div>
     <div class="sort" id="sort" aria-hidden="true"></div>
     <button class="ghost small" id="zenEnd" hidden>finish</button>
   </div>
@@ -41,14 +42,16 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <section class="screen" id="intro">
-    <p class="eyebrow">a calm orbit · on sui</p>
+    <p class="eyebrow">a calm labyrinth · on sui</p>
     <h1>Suift</h1>
-    <p class="lede">Turn the light. Gather the glow.<br />Peel back what's hidden. Keep what you draw.</p>
-    <div class="modes">
-      <button class="primary" data-mode="calm">Begin <span>three breaths</span></button>
-      <button class="ghost" data-mode="zen">Zen <span>no ending</span></button>
+    <p class="lede">Slip the light through turning rings.<br />Reach the heart. Keep what you draw.</p>
+    <p class="tagline">a game that trains calm focus under a ticking clock</p>
+    <button class="primary gate" id="gateConnect">Connect wallet <span>to begin</span></button>
+    <div class="modes" id="modes" hidden>
+      <button class="primary" data-mode="calm">Begin <span>timed</span></button>
+      <button class="ghost" data-mode="zen">Zen <span>no clock</span></button>
     </div>
-    <p class="hint"><kbd>tap</kbd> or <kbd>space</kbd> to turn · slip away from coral just in time for a <em>perfect fit</em></p>
+    <p class="hint" id="gateNote"></p>
     <div class="links"><button class="link" id="openHow">how to play</button><button class="link" id="openBoard">leaderboard</button></div>
   </section>
 
@@ -56,49 +59,55 @@
     <p class="eyebrow">how to play</p>
     <h2 id="howTitle" class="how-title">Five calm rules</h2>
     <ol class="how">
-      <li><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="16" class="ring"/><circle cx="40" cy="24" r="4" class="ball"/><path d="M36 14a14 14 0 0 1 6 6M12 34a14 14 0 0 1-4-6" class="arrow"/></svg>
-        <div><b>Tap to turn.</b> The light circles on its own. Tap anywhere (or press <kbd>space</kbd>) to reverse it.</div></li>
-      <li><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="16" class="ring"/><circle cx="24" cy="8" r="4" class="orb"/><circle cx="38" cy="32" r="3" class="orb"/></svg>
-        <div><b>Gather the glow.</b> Pass through soft orbs. Quick chains raise a combo and the notes climb a scale.</div></li>
-      <li><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="16" class="ring"/><path d="M9 30a16 16 0 0 1-1-8" class="shard"/></svg>
-        <div><b>Avoid coral.</b> Coral shards blink before they settle. Touching one costs a breath. You have three.</div></li>
-      <li><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="16" class="ring"/><path d="M38 16a16 16 0 0 1 2 6" class="shard"/><circle cx="36" cy="12" r="4" class="ball"/><circle cx="36" cy="12" r="9" class="snap"/></svg>
-        <div><b>Perfect fit.</b> Turn just before a coral shard, as close as you dare, for a gold snap and +25.</div></li>
+      <li><svg viewBox="0 0 48 48"><path d="M24 6a18 18 0 1 1-12.7 5.3" class="ring"/><path d="M24 14a10 10 0 1 0 9 5.6" class="ring"/><circle cx="24" cy="6" r="3.5" class="ball"/><circle cx="24" cy="24" r="3" class="orb"/></svg>
+        <div><b>Find the heart.</b> The light circles its ring by itself. The glowing centre is your goal.</div></li>
+      <li><svg viewBox="0 0 48 48"><path d="M30 7a18 18 0 1 1-12 0" class="ring"/><circle cx="18" cy="7" r="2" class="lip"/><circle cx="30" cy="7" r="2" class="lip"/><circle cx="24" cy="6" r="3.5" class="ball"/><path d="M24 12v6" class="arrow"/></svg>
+        <div><b>Tap when the gap glows gold.</b> Tap anywhere (or <kbd>space</kbd>) to slip inward through the opening below you. Rush it and the gap locks for one breath, so wait for the glow.</div></li>
+      <li><svg viewBox="0 0 48 48"><path d="M24 6a18 18 0 1 1-0.1 0" class="ring"/><circle cx="35" cy="10" r="3.5" class="ball"/><circle cx="36" cy="10" r="9" class="snap"/></svg>
+        <div><b>Perfect fit.</b> Tap dead-centre in the gap for a gold snap, bonus points and +1 second.</div></li>
+      <li><svg viewBox="0 0 48 48"><path d="M24 6a18 18 0 1 1-0.1 0" class="ring"/><path d="M8 24h7" class="shard"/><circle cx="12" cy="13" r="3" class="ball"/></svg>
+        <div><b>Coral walls bounce you back.</b> Rings turn slowly, so the gap you need will come round.</div></li>
       <li><svg viewBox="0 0 48 48"><g class="petals"><ellipse cx="24" cy="12" rx="3" ry="7"/><ellipse cx="24" cy="36" rx="3" ry="7"/><ellipse cx="12" cy="24" rx="7" ry="3"/><ellipse cx="36" cy="24" rx="7" ry="3"/></g><circle cx="24" cy="24" r="3" class="ball"/></svg>
-        <div><b>Keep what you draw.</b> Each orb adds a petal to your mandala and peels back hidden art. The tempo rises every 15s. At the end, mint your mandala on Sui.</div></li>
+        <div><b>Beat the clock, keep the bloom.</b> 50 seconds to start. Each heart reached adds time and a deeper labyrinth. Glows add +1s. When time ends, mint your mandala on Sui.</div></li>
     </ol>
-    <div class="modes"><button class="primary" id="howGo">Begin <span>three breaths</span></button><button class="ghost" id="howBack">Back</button></div>
+    <div class="modes"><button class="primary" id="howGo">Begin <span>timed</span></button><button class="ghost" id="howBack">Back</button></div>
   </section>
 
   <section class="screen" id="over" hidden>
-    <p class="eyebrow" id="overEyebrow">your orbit</p>
+    <p class="eyebrow" id="overEyebrow">your labyrinth</p>
     <img id="mandala" alt="The mandala you drew this run" width="300" height="300" />
     <div class="stats">
       <div><b id="oScore">0</b><span>score</span></div>
-      <div><b id="oLaps">0</b><span>laps</span></div>
+      <div><b id="oLaps">0</b><span>hearts</span></div>
       <div><b id="oPerf">0</b><span>perfect fits</span></div>
     </div>
-    <label class="name">
-      <span>sign it</span>
-      <input id="name" maxlength="16" placeholder="your name" autocomplete="nickname" />
-    </label>
+    <label class="name"><span>sign it</span><input id="name" maxlength="16" placeholder="your name" autocomplete="nickname" /></label>
     <div class="modes">
       <button class="primary" id="mint">Mint mandala <span>& join the board</span></button>
-      <button class="ghost" id="again">Again</button>
+      <button class="ghost" id="again">Play again <span>space</span></button>
     </div>
-    <p class="note" id="mintNote">Testnet · one signature · free test SUI from <a href="https://faucet.sui.io" target="_blank" rel="noopener">faucet.sui.io</a></p>
+    <button class="link" id="menu">menu</button>
+    <p class="note" id="mintNote"></p>
   </section>
 
   <aside class="board" id="board" hidden aria-label="Leaderboard">
     <div class="board-head">
       <h2>Stillest hands</h2>
-      <button class="icon-btn" id="closeBoard" aria-label="Close leaderboard">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
-      </button>
+      <button class="icon-btn" id="closeBoard" aria-label="Close leaderboard"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
     <p class="board-sub" id="boardSub">reading the chain…</p>
     <ol id="boardList"></ol>
   </aside>
+
+  <div class="picker" id="picker" hidden role="dialog" aria-modal="true" aria-labelledby="pickerTitle">
+    <div class="picker-card">
+      <div class="board-head"><h2 id="pickerTitle">Connect a wallet</h2>
+        <button class="icon-btn" id="pickerClose" aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+      <ul id="pickerList"></ul>
+      <p class="picker-msg" id="pickerErr" role="alert"></p>
+      <p class="picker-help">No wallet? Install <a href="https://slush.app" target="_blank" rel="noopener">Slush</a>, switch it to <b>Testnet</b>, and grab free test SUI at <a href="https://faucet.sui.io" target="_blank" rel="noopener">faucet.sui.io</a>.</p>
+    </div>
+  </div>
 
   <script type="module" src="/src/main.js"></script>
 </body>
