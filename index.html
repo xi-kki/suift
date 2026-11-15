@@ -49,7 +49,25 @@
       <button class="ghost" data-mode="zen">Zen <span>no ending</span></button>
     </div>
     <p class="hint"><kbd>tap</kbd> or <kbd>space</kbd> to turn · slip away from coral just in time for a <em>perfect fit</em></p>
-    <button class="link" id="openBoard">leaderboard</button>
+    <div class="links"><button class="link" id="openHow">how to play</button><button class="link" id="openBoard">leaderboard</button></div>
+  </section>
+
+  <section class="screen" id="how" hidden aria-labelledby="howTitle">
+    <p class="eyebrow">how to play</p>
+    <h2 id="howTitle" class="how-title">Five calm rules</h2>
+    <ol class="how">
+      <li><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="16" class="ring"/><circle cx="40" cy="24" r="4" class="ball"/><path d="M36 14a14 14 0 0 1 6 6M12 34a14 14 0 0 1-4-6" class="arrow"/></svg>
+        <div><b>Tap to turn.</b> The light circles on its own. Tap anywhere (or press <kbd>space</kbd>) to reverse it.</div></li>
+      <li><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="16" class="ring"/><circle cx="24" cy="8" r="4" class="orb"/><circle cx="38" cy="32" r="3" class="orb"/></svg>
+        <div><b>Gather the glow.</b> Pass through soft orbs. Quick chains raise a combo and the notes climb a scale.</div></li>
+      <li><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="16" class="ring"/><path d="M9 30a16 16 0 0 1-1-8" class="shard"/></svg>
+        <div><b>Avoid coral.</b> Coral shards blink before they settle. Touching one costs a breath. You have three.</div></li>
+      <li><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="16" class="ring"/><path d="M38 16a16 16 0 0 1 2 6" class="shard"/><circle cx="36" cy="12" r="4" class="ball"/><circle cx="36" cy="12" r="9" class="snap"/></svg>
+        <div><b>Perfect fit.</b> Turn just before a coral shard, as close as you dare, for a gold snap and +25.</div></li>
+      <li><svg viewBox="0 0 48 48"><g class="petals"><ellipse cx="24" cy="12" rx="3" ry="7"/><ellipse cx="24" cy="36" rx="3" ry="7"/><ellipse cx="12" cy="24" rx="7" ry="3"/><ellipse cx="36" cy="24" rx="7" ry="3"/></g><circle cx="24" cy="24" r="3" class="ball"/></svg>
+        <div><b>Keep what you draw.</b> Each orb adds a petal to your mandala and peels back hidden art. The tempo rises every 15s. At the end, mint your mandala on Sui.</div></li>
+    </ol>
+    <div class="modes"><button class="primary" id="howGo">Begin <span>three breaths</span></button><button class="ghost" id="howBack">Back</button></div>
   </section>
 
   <section class="screen" id="over" hidden>

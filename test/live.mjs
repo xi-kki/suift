@@ -1,0 +1,11 @@
+import puppeteer from 'puppeteer-core';
+const b = await puppeteer.launch({ executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: 'new' });
+const p = await b.newPage(); const errs = [];
+p.on('pageerror', (e) => errs.push('pageerror ' + e.message));
+p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+await p.goto('https://xi-kki.github.io/suift/', { waitUntil: 'networkidle0' });
+await p.click('#openBoard'); await new Promise((r) => setTimeout(r, 4000));
+console.log(await p.evaluate(() => document.getElementById('boardSub').textContent + ' | ' + document.getElementById('boardList').innerText.replace(/\n/g, ' ')));
+console.log('connect btn:', await p.evaluate(() => !!document.querySelector('mysten-dapp-kit-connect-button')));
+console.log('ERRORS', errs.length ? errs.join('\n') : 'none');
+await b.close();

@@ -11,7 +11,7 @@ const store = {
 let toastT;
 function toast(msg) {
   const t = $('toast'); t.textContent = msg; t.classList.add('show');
-  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 1600);
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 2400);
 }
 
 let lastRun = null;
@@ -53,12 +53,16 @@ window.__game = game;
 function setNote(html, cls = '') { const n = $('mintNote'); n.innerHTML = html; n.className = 'note ' + cls; }
 
 function begin(mode) {
+  // first visit: show rules once before the first run
+  if (store.get('suift.seenHow', '0') !== '1') { showHow(mode); return; }
   sfx.initAudio();
+  $('how').hidden = true;
   $('intro').hidden = true; $('over').hidden = true; $('board').hidden = true;
   $('hud').hidden = false;
   $('zenEnd').hidden = mode !== 'zen';
   game.start(mode);
   store.set('suift.mode', mode);
+  coach(mode);
 }
 
 document.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); begin(b.dataset.mode); }));
@@ -159,3 +163,23 @@ $('mint').addEventListener('click', async (e) => {
     setNote(/reject|denied|cancel/i.test(msg) ? 'Signature cancelled. Your mandala is still here.' : `Could not mint: ${esc(msg).slice(0, 140)}`, 'err');
   }
 });
+
+// ---- how to play ----
+let howMode = 'calm';
+function showHow(mode = 'calm') {
+  howMode = mode;
+  $('intro').hidden = true; $('board').hidden = true;
+  $('howGo').innerHTML = mode === 'zen' ? 'Begin <span>zen</span>' : 'Begin <span>three breaths</span>';
+  $('how').hidden = false;
+}
+$('openHow').addEventListener('click', (e) => { e.stopPropagation(); showHow(); });
+$('howBack').addEventListener('click', (e) => { e.stopPropagation(); $('how').hidden = true; $('intro').hidden = false; });
+$('howGo').addEventListener('click', (e) => { e.stopPropagation(); store.set('suift.seenHow', '1'); begin(howMode); });
+
+// in-game coaching for the first runs: short, timed, then never again
+function coach(mode) {
+  const runs = Number(store.get('suift.runs', 0)); store.set('suift.runs', runs + 1);
+  if (runs >= 2) return;
+  const tips = [[600, 'tap to turn'], [4500, 'pass through the glow'], [9000, 'coral blinks, then settles'], [14000, 'turn just before coral: perfect fit']];
+  tips.forEach(([t, msg]) => setTimeout(() => { if (game.state === 'play' && game.mode === mode) toast(msg); }, t));
+}

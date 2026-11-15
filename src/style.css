@@ -94,3 +94,20 @@ kbd { font-family: var(--sans); font-size: 11px; border: 1px solid var(--faint);
   * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 .board li.empty { grid-template-columns: 1fr; } .board li.empty::before { content: none; }
+.links { display: flex; gap: 6px; margin-top: 18px; }
+.links .link { margin-top: 0; }
+#how { justify-content: center; overflow-y: auto; }
+.how-title { font-family: var(--serif); font-weight: 400; font-size: clamp(40px, 7vw, 60px); margin: 10px 0 22px; }
+.how { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 14px; max-width: 460px; text-align: left; }
+.how li { display: grid; grid-template-columns: 48px 1fr; gap: 16px; align-items: center; font-size: 15px; line-height: 1.5; color: rgba(242, 237, 228, 0.8); animation: rise 0.7s var(--ease) both; }
+.how li:nth-child(2) { animation-delay: 0.08s; } .how li:nth-child(3) { animation-delay: 0.16s; } .how li:nth-child(4) { animation-delay: 0.24s; } .how li:nth-child(5) { animation-delay: 0.32s; }
+.how b { color: var(--paper); font-weight: 600; }
+.how svg { width: 48px; height: 48px; fill: none; }
+.how .ring { stroke: rgba(242, 237, 228, 0.25); }
+.how .ball { fill: var(--glow); }
+.how .orb { fill: #c8b6ff; }
+.how .shard { stroke: var(--coral); stroke-width: 4; stroke-linecap: round; }
+.how .snap { stroke: var(--gold); stroke-opacity: 0.6; }
+.how .arrow { stroke: var(--muted); stroke-linecap: round; }
+.how .petals ellipse { fill: hsl(300 60% 70% / 0.35); stroke: hsl(300 70% 80% / 0.6); stroke-width: 0.6; }
+@media (max-height: 700px) { .how li { font-size: 14px; } .how-title { margin: 4px 0 12px; } }
